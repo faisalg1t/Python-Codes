@@ -7,17 +7,18 @@ GitHub : @faisalg1t
 import random
 
 number = random.randint(1, 100)
+attempts = 0
 
-print("Guess the Number!")
-print("I'm thinking of a number between 1 and 100")
+print("🎯 I'm thinking of a number from 1 to 100!")
 
 while True:
-    guess = int(input("Enter your guess: "))
+    guess = int(input("Your guess: "))
+    attempts += 1
 
     if guess < number:
-        print(" To low! Try again.")
+        print("⬆️ Too low!")
     elif guess > number:
-        print("To high! Try again.")
+        print("⬇️ Too high!")
     else:
-        print("Correct! you guessed the number!")
+        print(f"🎉 Correct! You got it in {attempts} attempts!")
         break
