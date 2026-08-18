@@ -22,6 +22,6 @@ elif opr == "/":
     result = num1 / num2
 
 else:
-    result = "You are nigga"
+    result = "Somthing wrong!"
 
 print(num1, opr, num2, "=", result)
