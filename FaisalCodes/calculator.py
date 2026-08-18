@@ -1,5 +1,4 @@
 """
-PythonCode : 003
 Code Name : Calculator
 Author : Shah Faisal
 GitHub : @faisalg1t
