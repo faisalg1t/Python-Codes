@@ -1,5 +1,4 @@
 """
-PythonCode : 001
 Code Name : Number Guessing Game
 Author : Shah Faisal
 GitHub : @faisalg1t
