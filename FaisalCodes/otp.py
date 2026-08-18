@@ -1,5 +1,4 @@
 """
-PythonCode : 002
 Code Name : OTP Example
 Author : Shah Faisal
 GitHub : @faisalg1t
