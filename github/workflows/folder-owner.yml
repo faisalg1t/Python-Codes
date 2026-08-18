@@ -1,0 +1,226 @@
+name: Folder Owner Protection
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-merge:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Get the repository's real history.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+
+      # Check who owns every folder changed by this PR.
+      - name: Check folder ownership
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+
+          echo "======================================"
+          echo "Folder Owner Protection"
+          echo "======================================"
+          echo "PR author: $PR_AUTHOR"
+          echo ""
+
+          # Get every changed file in the PR.
+          gh api \
+            "repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" \
+            --paginate \
+            --jq '.[].filename' > changed_files.txt
+
+          if [ ! -s changed_files.txt ]; then
+            echo "No changed files."
+            exit 1
+          fi
+
+          echo "Changed files:"
+          cat changed_files.txt
+          echo ""
+
+          # Get unique top-level folders.
+          awk -F/ 'NF > 1 {print $1}' changed_files.txt | sort -u > folders.txt
+
+          if [ ! -s folders.txt ]; then
+            echo "::error::A PR must modify files inside a folder."
+            exit 1
+          fi
+
+          while IFS= read -r folder; do
+
+            echo "======================================"
+            echo "Checking folder: $folder/"
+            echo "======================================"
+
+            # Never allow changing this workflow through a PR.
+            if [[ "$folder" == ".github" ]]; then
+              echo "::error::.github cannot be modified by contributor PRs."
+              exit 1
+            fi
+
+            # Make sure this is actually a directory in the base branch.
+            if [ -d "$folder" ]; then
+              echo "Folder already exists."
+              echo "Finding original folder owner..."
+
+              # Find the first commit that added a file inside this folder.
+              FIRST_COMMIT=$(
+                git log \
+                  --reverse \
+                  --diff-filter=A \
+                  --format='%H' \
+                  -- "$folder" \
+                | head -n 1
+              )
+
+              if [ -z "$FIRST_COMMIT" ]; then
+                echo "::error::Could not determine the original owner of $folder/"
+                exit 1
+              fi
+
+              echo "First folder commit: $FIRST_COMMIT"
+
+              # Ask GitHub who authored that commit.
+              OWNER=$(
+                gh api \
+                  "repos/$REPO/commits/$FIRST_COMMIT" \
+                  --jq '.author.login // empty'
+              )
+
+              # If GitHub cannot associate the commit with a user,
+              # reject instead of guessing.
+              if [ -z "$OWNER" ]; then
+                echo "::error::Could not determine GitHub owner of $folder/"
+                echo "::error::The original commit has no associated GitHub user."
+                exit 1
+              fi
+
+              echo "Folder owner: $OWNER"
+              echo "PR author:    $PR_AUTHOR"
+              echo ""
+
+              if [[ "${OWNER,,}" != "${PR_AUTHOR,,}" ]]; then
+                echo "::error::======================================"
+                echo "::error::PERMISSION DENIED"
+                echo "::error::======================================"
+                echo "::error::$PR_AUTHOR cannot modify $folder/"
+                echo "::error::"
+                echo "::error::$folder/ belongs to $OWNER"
+                echo "::error::"
+                echo "::error::Only $OWNER can modify this folder."
+                exit 1
+              fi
+
+              echo "✓ Owner check passed."
+              echo ""
+
+            else
+              # This is a NEW folder.
+              #
+              # Because it does not exist on the default branch yet,
+              # the person opening this PR becomes its owner.
+              echo "This is a NEW folder."
+              echo "New folder owner: $PR_AUTHOR"
+              echo "✓ New folder is allowed."
+
+            fi
+
+          done < folders.txt
+
+          echo ""
+          echo "======================================"
+          echo "✓ ALL FOLDER OWNERSHIP CHECKS PASSED"
+          echo "======================================"
+
+      # Only allow README.md and Python files.
+      - name: Check allowed files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          gh api \
+            "repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" \
+            --paginate \
+            --jq '.[].filename' > changed_files.txt
+
+          while IFS= read -r file; do
+
+            echo "Checking file: $file"
+
+            # Root-level files are not allowed.
+            if [[ "$file" != */* ]]; then
+              echo "::error::Root-level files cannot be changed: $file"
+              exit 1
+            fi
+
+            # Do not allow .github files.
+            if [[ "$file" == .github/* ]]; then
+              echo "::error::.github files cannot be changed by contributor PRs."
+              exit 1
+            fi
+
+            case "$file" in
+              */README.md)
+                echo "✓ README.md allowed"
+                ;;
+
+              *.py)
+                echo "✓ Python file allowed"
+                ;;
+
+              *)
+                echo "::error::File type not allowed: $file"
+                echo "::error::Only README.md and .py files are allowed."
+                exit 1
+                ;;
+            esac
+
+            echo ""
+
+          done < changed_files.txt
+
+          echo "======================================"
+          echo "✓ FILE CHECK PASSED"
+          echo "======================================"
+
+      # Automatically merge using a REAL merge commit.
+      - name: Merge pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          echo "======================================"
+          echo "ALL CHECKS PASSED"
+          echo "Merging pull request..."
+          echo "Merge method: MERGE COMMIT"
+          echo "======================================"
+
+          gh pr merge "$PR_NUMBER" \
+            --repo "$REPO" \
+            --merge \
+            --delete-branch
+
+          echo ""
+          echo "✓ Pull request merged successfully."
