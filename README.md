@@ -151,6 +151,20 @@ Your first contribution could be:
 
 Every contribution can help someone else learn. 💙
 
+# 👥 Contributors
+
+A big thank you to everyone who contributes to this project! ❤️
+
+Your contributions help make this repository better for the entire Python community.
+
+<a href="https://github.com/faisalg1t/Python-Codes/graphs/contributors"> <img src="https://contrib.rocks/image?repo=faisalg1t/Python-Codes" /> </a>
+
+Want to see your avatar here? **Contribute a Python project and become a contributor! 🚀**
+
+# ⭐ Contributors
+
+Thanks to all the amazing developers who contribute to **Python-Codes!**
+
 # 📜 License
 
 This project is licensed under the MIT License.
