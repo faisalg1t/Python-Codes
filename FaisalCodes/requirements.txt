@@ -1,0 +1,5 @@
+pyfiglet
+pyjokes
+rich
+requests
+tqdm
